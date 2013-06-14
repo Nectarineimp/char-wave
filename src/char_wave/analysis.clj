@@ -34,18 +34,18 @@
   [wave]
   (let
     [scale (-wave-size wave)]
-    (map #(vector (first %) (+ 1 (-magnify (/ (second %) scale)))) wave)))
+    (map #(vector (first %) (/ (second %) scale)) wave)))
 
 ;; Wilkes' Power Magic
 
 (defn -fill-array [tuples]
-  (let [xs (int-array 256)]
+  (let [xs (double-array 256)]
     (doseq [[pos x] tuples]
-      (aset-int xs pos x))
+      (aset-double xs pos x))
     xs))
 
-(defn -array->tuples [^ints xs]
-  (areduce ^ints xs i ret []
+(defn -array->tuples [^doubles xs]
+  (areduce xs i ret []
            (conj ret [i (aget xs i)])))
 
 (def -fill-tuples (comp -array->tuples -fill-array))
