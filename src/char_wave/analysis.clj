@@ -1,9 +1,25 @@
 (ns char-wave.analysis)
 
+;; Math functions
+
 (defn roundx
   "x= number to be rounded, n= precision, maximum precision of 10."
   [x n]
   (/ (Math/round (* (Math/pow 10.0 (if (> n 10) 10 n)) x)) (Math/pow 10.0 (if (> n 10) 10 n))))
+
+(defn mean [s]
+  (/ (apply + s) (count s)))
+
+(defn std-dev [s]
+  (let [m (mean s)
+        n (count s)]
+    (->> s
+         (map #(- % m))
+         (map #(* % %))
+         mean
+         Math/sqrt)))
+
+;; Waveform Functions
 
 (defn -sort-part-chars
   "Takes the input an partitions every unique byte into mini collections."
@@ -23,11 +39,6 @@
   "Examines the waveform for element count and produces that value to be used in normalization"
   [wave]
   (reduce (fn [a b] (+ a (second b))) 0 wave))
-
-(defn -magnify
-  [x]
-  "Takes a normal x, divides by 1/10 and rounds the double to zero decimiles. This creates 201 possible bins of 0-200"
-  (int (roundx (* x 25) 0)))
 
 (defn -normalize-wf
   "Creates a normalized wave form of vectors of byte and count over total samples."
