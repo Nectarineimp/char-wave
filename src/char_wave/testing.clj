@@ -57,3 +57,11 @@ u-mean
 
 
 ;; proposed data structure to hold: byte, confidence (= observations/total observations), mean, std-dev
+
+(= [true false] [true false])
+
+(def tv 13)
+(cond-> tv
+        true inc
+        (> tv 4) (* 44)
+        (= 2 2) (* 3))
