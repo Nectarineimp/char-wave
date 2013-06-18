@@ -4,15 +4,6 @@
   (:import [java.io File]))
 
 ;; TODO: Training Mode, Sampling Mode, Scoring code
-(defn -switch
-  "inputs are added to the classifier and the gdb file is written."
-  [options arguments]
-  (let [filename (:classifier options) f (File. filename)]
-    (cond
-       (.exists f) (-train options arguments)
-       :else (-sample options arguments)
-     )
-  )
 
   (defn -train
     "This is where we injest files and try to create a Gaussian Bayes Classifier."
@@ -25,7 +16,19 @@
     [options arguments]
     (def pd (File. (:posdir options)))
     (def nd (File. (:negdir options)))
-    (cond-> [pd nd]))
+    (cond-> [pd nd])
+  )
+
+(defn -switch
+   "inputs are added to the classifier and the gdb file is written."
+  [options arguments]
+  (let [filename (:classifier options) f (File. filename)]
+    (cond
+       (.exists f) (-train options arguments)
+       :else (-sample options arguments)
+    )
+  )
+)
 
 (defn -main
   [& args]
@@ -46,9 +49,9 @@
                will be either + or - 0-1. A negative score says the file is not of the class
                while a positive score says the file is deemed in the class.
 
-               -c myclass.gbc file1.txt file2.txt file3.txt will return a set of three scores.
-               ")
+               -c myclass.gbc file1.txt file2.txt file3.txt will return a set of three scores.")
       (println banner)
       (System/exit 0))
     (-switch options arguments)
  )
+)
