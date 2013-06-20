@@ -3,7 +3,8 @@
 ;; right.
 
 (ns char-wave.testing
-  (:use [char-wave.analysis])
+  (:use [char-wave.analysis]
+        [char-wave.core])
   (:import [org.apache.commons.math3.distribution NormalDistribution])
 )
 
@@ -65,3 +66,5 @@ u-mean
         true inc
         (> tv 4) (* 44)
         (= 2 2) (* 3))
+
+;(-main "--help")
