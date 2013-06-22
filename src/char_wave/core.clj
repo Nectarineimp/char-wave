@@ -76,10 +76,8 @@
                will be either + or - 0-1. A negative score says the file is not of the class
                while a positive score says the file is deemed in the class.
 
-               gbc -c myclass.gbc file1.txt will return a score for file1.txt
-      (println banner)
-      ;(System/exit 0)
-      )
+               gbc -c myclass.gbc file1.txt will return a score for file1.txt")
+      (println banner))
     (-switch options arguments)
  )
 )

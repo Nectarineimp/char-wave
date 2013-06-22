@@ -8,16 +8,18 @@
   (/ (Math/round (* (Math/pow 10.0 (if (> n 10) 10 n)) x)) (Math/pow 10.0 (if (> n 10) 10 n))))
 
 (defn mean [s]
-  (/ (apply + s) (count s)))
+  (cond (= 0 (count s)) nil :else (/ (apply + s) (count s))))
 
 (defn std-dev [s]
-  (let [m (mean s)
+  (cond
+   (= 0 (count s)) nil
+  :else (let [m (mean s)
         n (count s)]
     (->> s
          (map #(- % m))
          (map #(* % %))
          mean
-         Math/sqrt)))
+         Math/sqrt))))
 
 ;; Waveform Functions
 
