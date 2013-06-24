@@ -49,6 +49,29 @@
     [scale (-wave-size wave)]
     (map #(vector (first %) (/ (second %) scale)) wave)))
 
+(defn -reduce-waveforms [waveforms] (map (partial map second) waveforms))
+
+(defn -lists-only [groups] (apply map (fn [& args] args) groups))
+
+(defn -remove-unobserved [groups] (map #(filter (partial < 0) %) groups))
+
+(defn working-groups [waveforms]
+  (-> waveforms
+       -reduce-waveforms
+       -lists-only
+       -remove-unobserved))
+
+(defn create-waveform-details [pure-groups input-waveform-count classifier-type]
+  (list { :type classifier-type :input-waveforms input-waveform-count :features 256 :features-observed (count (filter #(not (empty? %)) pure-groups)) }))
+
+(defn create-classifier
+  [pure-groups waveform-details]
+  (let [feature-gauss (map
+                            #(list {:mean (mean %) :std-dev (std-dev %) :observations (count %)} )
+                            pure-groups)]
+    (cons waveform-details feature-gauss)))
+
+
 ;; Wilkes' Power Magic
 
 (defn -fill-array [tuples]

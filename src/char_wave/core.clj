@@ -4,9 +4,8 @@
         [char-wave.analysis])
   (:import [java.io File]))
 
-;; TODO: Training Mode, Sampling Mode, Scoring code
-
 (defn dir-list [path]
+  "Gets a sequence of file names - used with posdir and negdir."
   (file-seq (clojure.java.io/file path)))
 
 (defn read-512
@@ -17,34 +16,44 @@
       (.read rdr buf)
       (apply str buf)))
 
-(defn create-classifier
-  "Accepts 256 element lists and calculates for each column: mean, stddev, count of non-zero observations (aka o) for the final classifier."
-  ; TODO make this work with Arrays of double instead per Wilkes's code.
-  [training-data]
+(defn write-GBC [classifier positive-classifier negative-classifier]
+  (spit classifier (pr-str (list positive-classifier negative-classifier))))
 
-  )
+(defn read-GBC [gbc-file]
+  (read-string (slurp gbc-file)))
 
 (defn -train
   "This is where we injest files and try to create a Gaussian Bayes Classifier."
-  [options arguments]
+  [options]
   (let
-    [training-data (list (map #(-> %
+    [training-data-positive (list (map #(-> %
       read-512
       generate-waveform)
-       dir-list (:posdir options)))]
-    (create-classifier training-data)))
+       dir-list (:posdir options)))
+     Input-Pos-Count (count training-data-positive)
+     training-data-negative (list (map #(-> %
+      read-512
+      generate-waveform)
+       dir-list (:negdir options)))
+     Input-Neg-Count (count training-data-negative)
+     Pure-Groups-Positive (working-groups training-data-positive)
+     Pure-Groups-Negative (working-groups training-data-negative)
+     Positive-Classifier (create-classifier Pure-Groups-Positive (create-waveform-details Pure-Groups-Positive Input-Pos-Count "positive"))
+     Negative-Classifier (create-classifier Pure-Groups-Negative (create-waveform-details Pure-Groups-Negative Input-Neg-Count "negative"))]
+    (Write-GBC (:classifier options) Positive-Classifier Negative-Classifier))
+  )
 
-(defn score [classifer filename])
+(defn -score [classifer filename])
 
-;(defn -sample
-;  "This is where we score input file(s) and return their best score +/-."
-;  [options arguments]
-;  (with-open [gbc (File. (:classifier options))]
-;    (def classifier (load-gbc gbc))
-;    (println (map (partial score classifer) arguments))
-;))
-
-(defn -sample [options arugments])
+(defn -sample [options arugments]
+  (let
+    [gbc-file (read-GBC (:classifier options))
+     pos-class (nth gbc-file 0)
+     neg-class (nth gbc-file 1)
+     pos-details (first pos-class)
+     pos-gauss (second pos-class)
+     neg-details (first neg-class)
+     neg-gauss (second neg-class)]))
 
 (defn -switch
    "inputs are added to the classifier and the gdb file is written."
@@ -52,7 +61,7 @@
   (let [filename (:classifier options) f (File. filename)]
     (cond
        (.exists f) (-sample options arguments)
-       :else (-train options arguments)
+       :else (-train options)
     )
   )
 )

@@ -28,29 +28,31 @@
 
 (def Input-Positive-Count (count training-data))
 
-(defn reduce-waveforms [waveforms] (map (partial map second) waveforms))
-(defn lists-only [groups] (apply map (fn [& args] args) groups))
-(defn remove-unobserved [groups] (map #(filter (partial < 0) %) groups))
-(defn working-groups [waveforms]
-  (-> waveforms
-       reduce-waveforms
-       lists-only
-       remove-unobserved))
-
 (def Pure-Groups-Positive (working-groups training-data))
 
-(defn create-waveform-details [pure-groups input-waveform-count classifier-type]
-  (list { :type classifier-type :input-waveforms input-waveform-count :features 256 :features-observed (count (filter #(not (empty? %)) pure-groups)) }))
-
-(defn create-classifier
-  [pure-groups waveform-details]
-  (let [feature-gauss (map
-                            #(list {:mean (mean %) :std-dev (std-dev %) :observations (count %)} )
-                            pure-groups)]
-    (cons waveform-details feature-gauss)))
-
 (create-waveform-details Pure-Groups-Positive Input-Positive-Count "positive")
-(def classifier (create-classifier Pure-Groups-Positive (create-waveform-details Pure-Groups-Positive Input-Positive-Count "positive")))
+
+(def classifier (create-classifier Pure-Groups-Positive
+                                   (create-waveform-details Pure-Groups-Positive Input-Positive-Count "positive")))
+
 (first classifier)
+
 (rest classifier)
+
 (clojure.pprint/pprint classifier)
+
+(spit "spit.txt" (pr-str classifier))
+
+(def read-classifer (read-string (slurp "spit.txt")))
+
+(:type (ffirst read-classifer))
+(first (second read-classifer))
+
+(defn meanfreq [a]
+  (:mean (first a)))
+
+(defn stddevfreq [a]
+  (:std-dev (first a)))
+
+(def meanlist (map meanfreq (rest read-classifer)))
+(def stddevlist (map stddevfreq (rest read-classifer)))
