@@ -1,4 +1,5 @@
-(ns char-wave.analysis)
+(ns char-wave.analysis
+  (:import [java.io File]))
 
 ;; Math functions
 
@@ -87,5 +88,20 @@
 (def -fill-tuples (comp -array->tuples -fill-array))
 
 (def generate-waveform (comp -fill-tuples -normalize-wf -char-waveform))
-;; This is the main entry point into the analysis - this takes text and performs an analysis of the distribution
-;; of bytes. These 8bit wave forms can then be compared and used to generate profiles from.
+
+;; scoring algorithm
+;; gauss is a 256 element array of mean, stddev and observations.
+;; details contains the number of samples examined (files), the
+;; number of features* and observed features.
+;;
+;; Scoring formula: \sum _{ n=1 }^{ n=256 }{ \quad  } \frac { CPD({ \mu  }_{ n },\quad { \sigma  }_{ n },\quad F_{ n })\quad { C }_{ n } }{ \hat { O }  }
+;; Where n=feature (256 considered here), F is the measurement of the sample on feature n
+;; C is the confidence of the feature - how many samples had that feature in training as a percent
+;; O circumflex is the number of observed features in the training set. We only score where a
+;; feature was observed. So zero observation measures are dropped entirely from consideration.
+;;
+;; *fixed at 256 in this incarnation but you may
+;; adapt this to other purposes so the math is kept intact for modification
+
+(defn -score [gauss filename]
+  (let [sampletext (read-512 (File. filename))]))

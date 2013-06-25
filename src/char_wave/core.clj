@@ -43,8 +43,6 @@
     (Write-GBC (:classifier options) Positive-Classifier Negative-Classifier))
   )
 
-(defn -score [classifer filename])
-
 (defn -sample [options arugments]
   (let
     [gbc-file (read-GBC (:classifier options))
@@ -53,7 +51,16 @@
      pos-details (first pos-class)
      pos-gauss (second pos-class)
      neg-details (first neg-class)
-     neg-gauss (second neg-class)]))
+     neg-gauss (second neg-class)]
+    (map
+     #(let [pos-score (-score pos-details pos-guass %)
+            neg-score (-score neg-details neg-gauss %)]
+        (cond (> pos-score neg-score) pos-score
+              :else (* -1 neg-score))
+        )
+     arguments)
+    )
+  )
 
 (defn -switch
    "inputs are added to the classifier and the gdb file is written."
