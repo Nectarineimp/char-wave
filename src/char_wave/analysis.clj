@@ -1,5 +1,6 @@
 (ns char-wave.analysis
-  (:import [java.io File]))
+  (:import [java.io File])
+  (:use [char-wave.util]))
 
 ;; Math functions
 

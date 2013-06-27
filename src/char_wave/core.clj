@@ -1,26 +1,11 @@
 (ns char-wave.core
   (:gen-class)
   (:use [clojure.tools.cli :only [cli]]
-        [char-wave.analysis])
+        [char-wave.analysis]
+        [char-wave.util])
   (:import [java.io File]))
 
-(defn dir-list [path]
-  "Gets a sequence of file names - used with posdir and negdir."
-  (file-seq (clojure.java.io/file path)))
 
-(defn read-512
-  "Reads upto 512 characters from a UTF8 or ASCII file and returns a string containing them."
-  [file]
-  (let [buf (char-array 30)
-          rdr (clojure.java.io/reader file)]
-      (.read rdr buf)
-      (apply str buf)))
-
-(defn write-GBC [classifier positive-classifier negative-classifier]
-  (spit classifier (pr-str (list positive-classifier negative-classifier))))
-
-(defn read-GBC [gbc-file]
-  (read-string (slurp gbc-file)))
 
 (defn -train
   "This is where we injest files and try to create a Gaussian Bayes Classifier."
@@ -40,10 +25,10 @@
      Pure-Groups-Negative (working-groups training-data-negative)
      Positive-Classifier (create-classifier Pure-Groups-Positive (create-waveform-details Pure-Groups-Positive Input-Pos-Count "positive"))
      Negative-Classifier (create-classifier Pure-Groups-Negative (create-waveform-details Pure-Groups-Negative Input-Neg-Count "negative"))]
-    (Write-GBC (:classifier options) Positive-Classifier Negative-Classifier))
+    (write-GBC (:classifier options) Positive-Classifier Negative-Classifier))
   )
 
-(defn -sample [options arugments]
+(defn -sample [options arguments]
   (let
     [gbc-file (read-GBC (:classifier options))
      pos-class (nth gbc-file 0)
@@ -53,7 +38,7 @@
      neg-details (first neg-class)
      neg-gauss (second neg-class)]
     (map
-     #(let [pos-score (-score pos-details pos-guass %)
+     #(let [pos-score (-score pos-details pos-gauss %)
             neg-score (-score neg-details neg-gauss %)]
         (cond (> pos-score neg-score) pos-score
               :else (* -1 neg-score))
