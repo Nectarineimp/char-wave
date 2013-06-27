@@ -7,4 +7,5 @@
                  [org.apache.commons/commons-math3 "3.2"]
                  [org.clojure/tools.cli "0.2.2"]]
   :main char-wave.core
-  :aot [char-wave.core])
+  :aot [char-wave.core]
+  :marginalia {:javascript ["mathjax/MathJax.js"]})

@@ -7,7 +7,7 @@
 
 
 
-(defn -train
+(defn train
   "This is where we injest files and try to create a Gaussian Bayes Classifier."
   [options]
   (let
@@ -28,7 +28,7 @@
     (write-GBC (:classifier options) Positive-Classifier Negative-Classifier))
   )
 
-(defn -sample [options arguments]
+(defn sample [options arguments]
   (let
     [gbc-file (read-GBC (:classifier options))
      pos-class (nth gbc-file 0)
@@ -38,8 +38,8 @@
      neg-details (first neg-class)
      neg-gauss (second neg-class)]
     (map
-     #(let [pos-score (-score pos-details pos-gauss %)
-            neg-score (-score neg-details neg-gauss %)]
+     #(let [pos-score (score pos-details pos-gauss %)
+            neg-score (score neg-details neg-gauss %)]
         (cond (> pos-score neg-score) pos-score
               :else (* -1 neg-score))
         )
@@ -47,13 +47,13 @@
     )
   )
 
-(defn -switch
+(defn switch
    "inputs are added to the classifier and the gdb file is written."
   [options arguments]
   (let [filename (:classifier options) f (File. filename)]
     (cond
-       (.exists f) (-sample options arguments)
-       :else (-train options)
+       (.exists f) (sample options arguments)
+       :else (train options)
     )
   )
 )
@@ -79,6 +79,6 @@
 
                gbc -c myclass.gbc file1.txt will return a score for file1.txt")
       (println banner))
-    (-switch options arguments)
+    (switch options arguments)
  )
 )
