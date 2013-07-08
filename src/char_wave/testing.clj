@@ -41,10 +41,9 @@
 stddev
 u-mean
 (def normd (NormalDistribution. u-mean stddev))
-(.getMean normd)
 (.cumulativeProbability normd u-mean)
 (.cumulativeProbability normd (/ u-mean 2))
-
+(.getMean normd)
 
 ;; proposed data structure to hold: byte, confidence (= observations/total observations), mean, std-dev
 {:mean (.getMean normd)
