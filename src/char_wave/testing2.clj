@@ -178,25 +178,34 @@ positive-classifier
        (cond (> (first score) (second score)) (first score)
          :else (* -1.0 (second score))))
 
-
+;; 2x mean is not enough for normal distribution to get to 99%
+(def tm 1)
+(def tsd 1)
+(def w 1)
+(* 2 (.cumulativeProbability (NormalDistribution. tm tsd) (- tm (Math/abs (- tm w)))))
 
 (defn calculate-score [gbc-filename sample-wave]
-  (with-open [rdr (reader gbc-file)]
-    (let [gbc (line-seq rdr)
+  (with-open [rdr (reader gbc-filename)]
+    (let [gbc (doall (line-seq rdr))
         pos-class (read-string (first gbc))
         pos-details (first pos-class)
         pos-gauss (rest pos-class)
         neg-class (read-string (second gbc))
         neg-details (first neg-class)
         neg-gauss (rest neg-class)]
-    (map (fn [gauss wave]
-           (cond (= 0.0 (:mean gauss)) 0
-                 :else (.cumulativeProbability (NormalDistribution. (:mean gauss) (:std-dev gauss)) (- (:mean gauss) wave))
-         ) pos-gauss sample-wave)
+      (map (fn [gauss wave]
+             (cond (= 0.0 (:mean gauss)) 0 ;unobserved, don't calculate
+                   :else (cond (= 0.0 wave) 0 ;no value, score defaults to zero
+                           :else (do
+                                   (println "Mean:" (str (:mean gauss)) " Std-Dev:" (str (:std-dev gauss)) "Sample: " (str wave))
+                                   ;(* 2 (.cumulativeProbability (NormalDistribution. (:mean gauss) (:std-dev gauss)) (- (:mean gauss) (Math/abs (- (:mean gauss) wave)))))
+                                 )
+             )
+           ) pos-gauss sample-wave
+      )
     )
   )
 )
 
-
-
-(calculate-score "/home/peter/cicayda/char-wave/classifier.gbc" (map second sample-wave))
+(def result-seq (calculate-score "/home/peter/cicayda/char-wave/classifier.gbc" (doall (map second sample-wave))))
+result-seq
