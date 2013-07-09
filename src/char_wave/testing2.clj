@@ -8,18 +8,6 @@
            [org.apache.commons.math3.distribution NormalDistribution])
 )
 
-;(defn dir-list [path]
-;  (file-seq (clojure.java.io/file path)))
-
-;(clojure.java.io/reader (nth (dir-list "./") 4))
-
-;  (let [buf (char-array 30)
-;        rdr (clojure.java.io/reader (clojure.java.io/file "README.md"))]
-;    (.read rdr buf)
-;    (apply str buf))
-
-;  (apply str (char-array 512))
-
 (def positive-training-data (list
  (generate-waveform "This is a simple sample of some text and I am not really trying to be crazy here.!@#$%^&*()_+")
  (generate-waveform "The Right honorable Frazer is visiting London on TDY attempting to make sense of Monarchy and Civility. 1299494.44 is the number.")
@@ -158,7 +146,6 @@ positive-classifier
 (def gbc-file (slurp "classifier.gbc"))
 (def example-text "This is an example of some text I would really like to test the classifier against.")
 (def sample-wave (generate-waveform example-text))
-
 (doall (map second sample-wave))
 
 (def not-nil? (complement nil?))
@@ -178,13 +165,32 @@ positive-classifier
        (cond (> (first score) (second score)) (first score)
          :else (* -1.0 (second score))))
 
-;; 2x mean is not enough for normal distribution to get to 99%
 (def tm 1)
 (def tsd 1)
 (def w 1)
 (* 2 (.cumulativeProbability (NormalDistribution. tm tsd) (- tm (Math/abs (- tm w)))))
 
+(defn prob-sample-fits [gauss wave total-inputs features-observed]
+  (cond (or (= 0.0 (:mean (first gauss)))
+            (= 0.0 wave)) 0
+        :else
+        (do
+          ;(println "Gauss:" (str (first gauss)) "Sample: " (str wave))
+          (/
+           (* (/ (:observations (first gauss)) total-inputs) ;confidence modifier
+            (* 2
+               (.cumulativeProbability
+                (NormalDistribution. (:mean (first gauss)) (:std-dev (first gauss)))
+                (- (:mean (first gauss))
+                   (Math/abs (- (:mean (first gauss))
+                                wave))))))
+           features-observed) ;; only observed features contribute.
+        )
+  )
+)
+
 (defn calculate-score [gbc-filename sample-wave]
+  "Takes a GBC filename and a sample waveform and produces a score set. (winning score, Positive Score, Negative Score)."
   (with-open [rdr (reader gbc-filename)]
     (let [gbc (doall (line-seq rdr))
         pos-class (read-string (first gbc))
@@ -193,19 +199,23 @@ positive-classifier
         neg-class (read-string (second gbc))
         neg-details (first neg-class)
         neg-gauss (rest neg-class)]
-      (map (fn [gauss wave]
-             (cond (= 0.0 (:mean gauss)) 0 ;unobserved, don't calculate
-                   :else (cond (= 0.0 wave) 0 ;no value, score defaults to zero
-                           :else (do
-                                   (println "Mean:" (str (:mean gauss)) " Std-Dev:" (str (:std-dev gauss)) "Sample: " (str wave))
-                                   ;(* 2 (.cumulativeProbability (NormalDistribution. (:mean gauss) (:std-dev gauss)) (- (:mean gauss) (Math/abs (- (:mean gauss) wave)))))
-                                 )
-             )
-           ) pos-gauss sample-wave
+      (let [score (list
+                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
+                                  pos-gauss
+                                  sample-wave
+                                  (repeat (:input-waveforms (first pos-details)))
+                                  (repeat (:features-observed (first pos-details)))))
+                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
+                                  neg-gauss
+                                  sample-wave
+                                  (repeat (:input-waveforms (first neg-details)))
+                                  (repeat (:features-observed (first neg-details))))) )]
+        ;; chose the score that is the absolute largest. If the negative classifier wins, multiply by -1.0.
+       (cond (> (first score) (second score)) (list (first score) (first score) (* -1.0 (second score)))
+         :else (list (* -1.0 (second score)) (first score) (* -1.0 (second score))))
       )
     )
   )
 )
 
-(def result-seq (calculate-score "/home/peter/cicayda/char-wave/classifier.gbc" (doall (map second sample-wave))))
-result-seq
+(calculate-score "/home/peter/cicayda/char-wave/classifier.gbc" (doall (map second sample-wave)))
