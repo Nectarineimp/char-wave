@@ -2,7 +2,8 @@
   (:gen-class)
   (:use [clojure.tools.cli :only [cli]]
         [char-wave.analysis]
-        [char-wave.util])
+        [char-wave.util]
+        [clojure.pprint])
   (:import [java.io File]))
 
 
@@ -29,23 +30,8 @@
   )
 
 (defn sample [options arguments]
-  (let
-    [gbc-file (read-GBC (:classifier options))
-     pos-class (nth gbc-file 0)
-     neg-class (nth gbc-file 1)
-     pos-details (first pos-class)
-     pos-gauss (second pos-class)
-     neg-details (first neg-class)
-     neg-gauss (second neg-class)]
-    (map
-     #(let [pos-score (score pos-details pos-gauss %)
-            neg-score (score neg-details neg-gauss %)]
-        (cond (> pos-score neg-score) pos-score
-              :else (* -1 neg-score))
-        )
-     arguments)
-    )
-  )
+  (pprint (map #(calculate-score (:classifier options) (generate-waveform %)) arguments))
+)
 
 (defn switch
    "inputs are added to the classifier and the gdb file is written."

@@ -1,7 +1,8 @@
 (ns char-wave.analysis
   (:import [java.io File]
            [org.apache.commons.math3.distribution NormalDistribution])
-  (:use [char-wave.util]))
+  (:use [char-wave.util]
+        [clojure.java.io]))
 
 ;; Math functions
 
