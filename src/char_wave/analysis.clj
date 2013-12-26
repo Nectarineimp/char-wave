@@ -61,19 +61,20 @@
 
 (defn working-groups [waveforms]
   (-> waveforms
-       reduce-waveforms
-       lists-only
-       remove-unobserved))
+      reduce-waveforms
+      lists-only
+      remove-unobserved))
 
 (defn create-waveform-details [pure-groups input-waveform-count classifier-type]
-  (list { :type classifier-type :input-waveforms input-waveform-count :features 256 :features-observed (count (filter #(not (empty? %)) pure-groups)) }))
+  (hash-map :type classifier-type :input-waveforms input-waveform-count :features 256 :features-observed (count (filter #(not (empty? %)) pure-groups))))
 
 (defn create-classifier
   [pure-groups waveform-details]
   (let [feature-gauss (map
-                            #(list {:mean (mean %) :std-dev (std-dev %) :observations (count %)} )
-                            pure-groups)]
-    (cons waveform-details feature-gauss)))
+                       (fn [x] {:mean (mean x) :std-dev (std-dev x) :observations (count x)})
+                       pure-groups)
+        ]
+    (list waveform-details feature-gauss)))
 
 
 ;; Wilkes' Power Magic
@@ -91,9 +92,6 @@
 (def fill-tuples (comp array->tuples fill-array))
 
 (def generate-waveform (comp fill-tuples normalize-wf char-waveform))
-
-;; When \\(a \ne 0\\), there are two solutions to \\(ax^2 + bx + c = 0\\) and they are
-;; $$x = {-b \pm \sqrt{b^2-4ac} \over 2a}.$$
 
 ;; scoring algorithm
 ;; gauss is a 256 element array of mean, stddev and observations.
@@ -119,19 +117,22 @@
 
   Gauss contains the distributions for all the features, wave are the measured features
   of the sample, total-inputs is the size of the training set (used for confidence)
-  and features-observed is the number of features scored for the classifier (proportion.)"
-  (cond (or (= 0.0 (:mean (first gauss)))
-            (= 0.0 wave)) 0
+  and features-observed is the number of features scored for the classifier (proportion.)
+
+  The number of observations must be greater than 1 for a feature in order to be scored."
+  ;(println "\n\nGauss: " gauss " Wave: " wave "\n\n")
+  (cond (or (> 2 (:observations gauss))
+            (= 0.0 (:std-dev gauss))) 0
         :else
         (do
           (/
-           (* (/ (:observations (first gauss)) total-inputs) ;confidence modifier
+           (* (/ (:observations gauss) total-inputs) ;confidence modifier
             (* 2
                (.cumulativeProbability
-                (NormalDistribution. (:mean (first gauss)) (:std-dev (first gauss)))
-                (- (:mean (first gauss))
-                   (Math/abs (- (:mean (first gauss))
-                                wave))))))
+                (NormalDistribution. (:mean gauss) (:std-dev gauss))
+                (- (:mean gauss)
+                   (Math/abs (- (:mean gauss)
+                                (second wave)))))))
            features-observed) ;; only observed features contribute.
         )
   )
@@ -139,29 +140,29 @@
 
 (defn calculate-score [gbc-filename sample-wave]
   "Takes a GBC filename and a sample waveform (list of 256 bytes) and produces a score set. (winning score, Positive Score, Negative Score)."
-  (with-open [rdr (reader gbc-filename)]
-    (let [gbc (doall (line-seq rdr))
-        pos-class (read-string (first gbc))
+
+  (let [gbc (read-GBC gbc-filename)
+        pos-class   (first gbc)
         pos-details (first pos-class)
-        pos-gauss (rest pos-class)
-        neg-class (read-string (second gbc))
+        pos-gauss   (second pos-class)
+        neg-class   (second gbc)
         neg-details (first neg-class)
-        neg-gauss (rest neg-class)]
-      (let [score (list
-                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
-                                  pos-gauss
-                                  sample-wave
-                                  (repeat (:input-waveforms (first pos-details)))
-                                  (repeat (:features-observed (first pos-details)))))
-                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
-                                  neg-gauss
-                                  sample-wave
-                                  (repeat (:input-waveforms (first neg-details)))
-                                  (repeat (:features-observed (first neg-details))))) )]
-        ;; chose the score that is the absolute largest. If the negative classifier wins, multiply by -1.0.
-       (cond (> (first score) (second score)) (list (first score) (first score) (* -1.0 (second score)))
-         :else (list (* -1.0 (second score)) (first score) (* -1.0 (second score))))
-      )
+        neg-gauss   (second neg-class)]
+    (let [score (list
+                 (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
+                                pos-gauss
+                                sample-wave
+                                (repeat (:input-waveforms pos-details))
+                                (repeat (:features-observed pos-details))))
+                 (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
+                                neg-gauss
+                                sample-wave
+                                (repeat (:input-waveforms neg-details))
+                                (repeat (:features-observed neg-details))))) ]
+      ;; chose the score that is the absolute largest. If the negative classifier wins, multiply by -1.0.
+      ;(cond (> (first score) (second score)) (list (first score) (first score) (* -1.0 (second score)))
+      ;      :else (list (* -1.0 (second score)) (first score) (* -1.0 (second score))))
+      score
     )
   )
 )

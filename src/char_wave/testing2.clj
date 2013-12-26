@@ -17,6 +17,8 @@
  (generate-waveform "The best executive is the one who has sense enough to pick good men to do what he wants done, and self-restraint to keep from meddling with them while they do it.")
                     ))
 
+positive-training-data
+
 (def Input-Positive-Count (count positive-training-data))
 (def Pure-Groups-Positive (working-groups positive-training-data))
 (def positive-classifier (create-classifier Pure-Groups-Positive
