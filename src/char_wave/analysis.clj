@@ -97,9 +97,7 @@
 ;; gauss is a 256 element array of mean, stddev and observations.
 ;; details contains the number of samples examined (files), the
 ;; number of features* and observed features.
-;; $$\[
-;; \frac{-b\pm\sqrt{b^2-4ac}}{2a}
-;; \]$$
+;;
 ;; Scoring formula:
 ;; $$\sum _{ n=1 }^{ n=256 }{ \quad  } \frac { CPD({ \mu  }_{ n },\quad { \sigma  }_{ n },\quad F_{ n })\quad { C }_{ n } }{ \hat { O }  }$$
 ;; Where n=feature (256 considered here), F is the measurement of the sample on feature n
@@ -110,59 +108,108 @@
 ;; *fixed at 256 in this incarnation but you may
 ;; adapt this to other purposes so the math is kept intact for modification
 
-(defn prob-sample-fits [gauss wave total-inputs features-observed]
-  "Calculates the probability a sample fits into the distribution of the feature,
-  with confidence based upon the number of observations of the feature, and proportion
-  for the number of total observed features.
 
-  Gauss contains the distributions for all the features, wave are the measured features
-  of the sample, total-inputs is the size of the training set (used for confidence)
-  and features-observed is the number of features scored for the classifier (proportion.)
-
-  The number of observations must be greater than 1 for a feature in order to be scored."
-  ;(println "\n\nGauss: " gauss " Wave: " wave "\n\n")
-  (cond (or (> 2 (:observations gauss))
-            (= 0.0 (:std-dev gauss))) 0
-        :else
-        (do
-          (/
-           (* (/ (:observations gauss) total-inputs) ;confidence modifier
-            (* 2
-               (.cumulativeProbability
-                (NormalDistribution. (:mean gauss) (:std-dev gauss))
-                (- (:mean gauss)
-                   (Math/abs (- (:mean gauss)
-                                (second wave)))))))
-           features-observed) ;; only observed features contribute.
-        )
-  )
+(defn prob-sample-fits
+  ;prob-sample-fits takes a gaussian distribution and a sample and
+  ;determines a modified CDF from it. We assume the highest match
+  ;is at the mean so the normal CDF function is used but the input
+  ;is transformed around the mean and the result is doubled.
+  [gauss sample]
+  (cond (or (= 0 (:observations gauss)) (= nil (:std-dev gauss)))
+    (* 2.0 (.cumulativeProbability
+     (NormalDistribution. (:mean gauss) (:std-dev gauss))
+     (- (:mean gauss) (Math/abs (- (:mean gauss) (second sample))))))
+   :else 0)
 )
+
+(defn count-matches [gauss-list sample-list]
+  (count (filter true? (map #(and (< 0 (:observations %1)) (< 0.0 (second %2))) gauss-list sample-list))))
+
+(defn get-sample-observations [sample-wave]
+  (count (filter #(< 0.0 %) (map second sample-wave))))
 
 (defn calculate-score [gbc-filename sample-wave]
   "Takes a GBC filename and a sample waveform (list of 256 bytes) and produces a score set. (winning score, Positive Score, Negative Score)."
 
   (let [gbc (read-GBC gbc-filename)
+        ;-----------GIVEN DETAILS-------------------------------
         pos-class   (first gbc)
         pos-details (first pos-class)
         pos-gauss   (second pos-class)
+        pos-inputs  (:input-waveforms pos-details)
         neg-class   (second gbc)
         neg-details (first neg-class)
-        neg-gauss   (second neg-class)]
-    (let [score (list
-                 (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
-                                pos-gauss
-                                sample-wave
-                                (repeat (:input-waveforms pos-details))
-                                (repeat (:features-observed pos-details))))
-                 (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
-                                neg-gauss
-                                sample-wave
-                                (repeat (:input-waveforms neg-details))
-                                (repeat (:features-observed neg-details))))) ]
-      ;; chose the score that is the absolute largest. If the negative classifier wins, multiply by -1.0.
-      ;(cond (> (first score) (second score)) (list (first score) (first score) (* -1.0 (second score)))
-      ;      :else (list (* -1.0 (second score)) (first score) (* -1.0 (second score))))
-      score
+        neg-gauss   (second neg-class)
+        neg-inputs  (:input-waveforms neg-details)
+        ;-----------DERIVED DETAILS------------------------------
+        posclass-total-obs (reduce + (map #(:observations %) pos-gauss))
+        negclass-total-obs (reduce + (map #(:observations %) neg-gauss))
+        pos-matches (count-matches pos-gauss sample-wave)
+        neg-matches (count-matches neg-gauss sample-wave)
+        sample-observations (get-sample-observations sample-wave)
+        pos-sample-fitness (map #(prob-sample-fits %1 %2) pos-gauss sample-wave)
+        neg-sample-fitness (map #(prob-sample-fits %1 %2) neg-gauss sample-wave)
+        pos-score (reduce + (map #(* %1 (/ (:observations %2) posclass-total-obs) (/ 1 sample-observations)) pos-sample-fitness pos-gauss))
+        neg-score (reduce + (map #(* %1 (/ (:observations %2) negclass-total-obs) (/ 1 sample-observations)) neg-sample-fitness neg-gauss))]
+      (list pos-score (* -1.0 neg-score))
+    )
+)
+
+(comment This is the old scoring code
+  (defn prob-sample-fits [gauss wave total-inputs features-observed]
+    "Calculates the probability a sample fits into the distribution of the feature,
+    with confidence based upon the number of observations of the feature, and proportion
+    for the number of total observed features.
+
+    Gauss contains the distributions for all the features, wave are the measured features
+    of the sample, total-inputs is the size of the training set (used for confidence)
+    and features-observed is the number of features scored for the classifier (proportion.)
+
+    The number of observations must be greater than 1 for a feature in order to be scored."
+
+    (cond (or (> 2 (:observations gauss))
+              (= 0.0 (:std-dev gauss))) 0
+          :else
+          (do
+            (/
+             (* (/ (:observations gauss) total-inputs) ;confidence modifier
+              (* 2
+                 (.cumulativeProbability
+                  (NormalDistribution. (:mean gauss) (:std-dev gauss))
+                  (- (:mean gauss)
+                     (Math/abs (- (:mean gauss)
+                                  (second wave)))))))
+             features-observed) ;; only observed features contribute.
+          )
+    )
+  )
+
+  (defn calculate-score [gbc-filename sample-wave]
+    "Takes a GBC filename and a sample waveform (list of 256 bytes) and produces a score set. (winning score, Positive Score, Negative Score)."
+
+    (let [gbc (read-GBC gbc-filename)
+          pos-class   (first gbc)
+          pos-details (first pos-class)
+          pos-gauss   (second pos-class)
+          neg-class   (second gbc)
+          neg-details (first neg-class)
+          neg-gauss   (second neg-class)]
+      (let [score (list
+                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
+                                  pos-gauss
+                                  sample-wave
+                                  (repeat (:input-waveforms pos-details))
+                                  (repeat (:features-observed pos-details))))
+                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
+                                  neg-gauss
+                                  sample-wave
+                                  (repeat (:input-waveforms neg-details))
+                                  (repeat (:features-observed neg-details))))) ]
+        ;; chose the score that is the absolute largest. If the negative classifier wins, multiply by -1.0.
+        (cond (> (first score) (second score)) (list (first score) (first score) (* -1.0 (second score)))
+              :else (list (* -1.0 (second score)) (first score) (* -1.0 (second score))))
+        score
+      )
     )
   )
 )
