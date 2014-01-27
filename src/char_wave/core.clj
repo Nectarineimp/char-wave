@@ -9,7 +9,7 @@
   (:import [java.io File])
 )
 
-(def gen-wave-from-filename (comp util/read-512 analysis/generate-waveform))
+(def gen-wave-from-filename (comp analysis/generate-waveform util/read-512))
 
 (defn train
   "This is where we injest files and try to create a Gaussian Bayes Classifier."

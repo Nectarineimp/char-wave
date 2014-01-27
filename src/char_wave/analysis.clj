@@ -115,11 +115,12 @@
   ;is at the mean so the normal CDF function is used but the input
   ;is transformed around the mean and the result is doubled.
   [gauss sample]
-  (cond (or (= 0 (:observations gauss)) (= nil (:std-dev gauss)))
-    (* 2.0 (.cumulativeProbability
-     (NormalDistribution. (:mean gauss) (:std-dev gauss))
-     (- (:mean gauss) (Math/abs (- (:mean gauss) (second sample))))))
-   :else 0)
+  (cond (nil? (:std-dev gauss))
+        0.0
+        :else
+          (* 2.0 (.cumulativeProbability
+            (NormalDistribution. (:mean gauss) (cond (= 0.0 (:std-dev gauss)) 0.00001 :else (:std-dev gauss)))
+              (- (:mean gauss) (Math/abs (- (:mean gauss) (second sample)))))))
 )
 
 (defn count-matches [gauss-list sample-list]
@@ -128,10 +129,13 @@
 (defn get-sample-observations [sample-wave]
   (count (filter #(< 0.0 %) (map second sample-wave))))
 
+(defn get-training-observations [gauss]
+  (reduce + (map #(:observations %) gauss)))
+
 (defn calculate-score [gbc-filename sample-wave]
   "Takes a GBC filename and a sample waveform (list of 256 bytes) and produces a score set. (winning score, Positive Score, Negative Score)."
-
-  (let [gbc (read-GBC gbc-filename)
+  (let [
+        gbc (read-GBC gbc-filename)
         ;-----------GIVEN DETAILS-------------------------------
         pos-class   (first gbc)
         pos-details (first pos-class)
@@ -142,74 +146,22 @@
         neg-gauss   (second neg-class)
         neg-inputs  (:input-waveforms neg-details)
         ;-----------DERIVED DETAILS------------------------------
-        posclass-total-obs (reduce + (map #(:observations %) pos-gauss))
-        negclass-total-obs (reduce + (map #(:observations %) neg-gauss))
+        posclass-total-obs (get-training-observations pos-gauss)
+        posclass-match-obs (reduce + (map #(cond (and (< 0 (:observations %1)) (< 0.0 (second %2))) (:observations %1) :else 0) pos-gauss sample-wave))
+        negclass-match-obs (reduce + (map #(cond (and (< 0 (:observations %1)) (< 0.0 (second %2))) (:observations %1) :else 0) neg-gauss sample-wave))
+        negclass-total-obs (get-training-observations neg-gauss)
         pos-matches (count-matches pos-gauss sample-wave)
         neg-matches (count-matches neg-gauss sample-wave)
         sample-observations (get-sample-observations sample-wave)
         pos-sample-fitness (map #(prob-sample-fits %1 %2) pos-gauss sample-wave)
         neg-sample-fitness (map #(prob-sample-fits %1 %2) neg-gauss sample-wave)
-        pos-score (reduce + (map #(* %1 (/ (:observations %2) posclass-total-obs) (/ 1 sample-observations)) pos-sample-fitness pos-gauss))
-        neg-score (reduce + (map #(* %1 (/ (:observations %2) negclass-total-obs) (/ 1 sample-observations)) neg-sample-fitness neg-gauss))]
-      (list pos-score (* -1.0 neg-score))
-    )
-)
-
-(comment This is the old scoring code
-  (defn prob-sample-fits [gauss wave total-inputs features-observed]
-    "Calculates the probability a sample fits into the distribution of the feature,
-    with confidence based upon the number of observations of the feature, and proportion
-    for the number of total observed features.
-
-    Gauss contains the distributions for all the features, wave are the measured features
-    of the sample, total-inputs is the size of the training set (used for confidence)
-    and features-observed is the number of features scored for the classifier (proportion.)
-
-    The number of observations must be greater than 1 for a feature in order to be scored."
-
-    (cond (or (> 2 (:observations gauss))
-              (= 0.0 (:std-dev gauss))) 0
-          :else
-          (do
-            (/
-             (* (/ (:observations gauss) total-inputs) ;confidence modifier
-              (* 2
-                 (.cumulativeProbability
-                  (NormalDistribution. (:mean gauss) (:std-dev gauss))
-                  (- (:mean gauss)
-                     (Math/abs (- (:mean gauss)
-                                  (second wave)))))))
-             features-observed) ;; only observed features contribute.
-          )
-    )
-  )
-
-  (defn calculate-score [gbc-filename sample-wave]
-    "Takes a GBC filename and a sample waveform (list of 256 bytes) and produces a score set. (winning score, Positive Score, Negative Score)."
-
-    (let [gbc (read-GBC gbc-filename)
-          pos-class   (first gbc)
-          pos-details (first pos-class)
-          pos-gauss   (second pos-class)
-          neg-class   (second gbc)
-          neg-details (first neg-class)
-          neg-gauss   (second neg-class)]
-      (let [score (list
-                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
-                                  pos-gauss
-                                  sample-wave
-                                  (repeat (:input-waveforms pos-details))
-                                  (repeat (:features-observed pos-details))))
-                   (reduce + (map #(prob-sample-fits %1 %2 %3 %4)
-                                  neg-gauss
-                                  sample-wave
-                                  (repeat (:input-waveforms neg-details))
-                                  (repeat (:features-observed neg-details))))) ]
-        ;; chose the score that is the absolute largest. If the negative classifier wins, multiply by -1.0.
-        (cond (> (first score) (second score)) (list (first score) (first score) (* -1.0 (second score)))
-              :else (list (* -1.0 (second score)) (first score) (* -1.0 (second score))))
-        score
-      )
-    )
+        pos-score (reduce + (map #(* (/ %1 sample-observations) (/ posclass-match-obs posclass-total-obs)) pos-sample-fitness ))
+        neg-score (reduce + (map #(* (/ %1 sample-observations) (/ negclass-match-obs negclass-total-obs)) neg-sample-fitness ))
+        pos-sf (reduce + pos-sample-fitness)
+        neg-sf (reduce + neg-sample-fitness)
+       ]
+    (list "matched observations" posclass-match-obs negclass-match-obs "score" pos-score neg-score "total observations" posclass-total-obs negclass-total-obs
+          "matches" pos-matches neg-matches "sample observations" sample-observations
+          "sample fitness" pos-sf neg-sf)
   )
 )
